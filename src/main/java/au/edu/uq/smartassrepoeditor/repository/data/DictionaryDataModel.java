@@ -79,17 +79,12 @@ abstract public class DictionaryDataModel extends IntIdDataModel {
 			//RowSet rowSet;
 			//rowSet = new JdbcRowSetImpl(data.getConnection());
 			rowSet.setCommand(composeRowsetSql(null));
-			System.out.println("Row set: " + rowSet.toString());
-			System.out.println("ROW :: " + rowSet.execute());
 			rowSet.execute();
-			System.out.println("Row set: " + rowSet.toString());
 			return new LookupTableModel(rowSet);
-		} catch (Exception e) {
+		} catch (SQLException e) {
 			// @TODO: log this - throw?
 			e.printStackTrace();
-			System.out.println("================= Starting");
 			System.out.println(e.getStackTrace().toString());
-			System.out.println("=================");
 		}
 		return null;
 	}

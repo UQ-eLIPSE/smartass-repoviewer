@@ -19,6 +19,9 @@ dependencies {
 	compile 'org.codehaus.groovy:groovy:2.4.4'
 	compile 'org.swinglabs:pdf-renderer:1.0.5'
 	compile 'mysql:mysql-connector-java:5.1.6'
+	
+	compile 'junit:junit:4.12'
+	
 	compile fileTree('lib')
 }
 
