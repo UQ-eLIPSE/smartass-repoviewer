@@ -1,0 +1,8 @@
+
+### Gradle ###
+.gradle
+.settings/
+smartass.log
+build/
+bin/
+lib/*.jar

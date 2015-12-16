@@ -1,0 +1,103 @@
+options {
+    STATIC = false ;
+ 	MULTI=true;
+}
+
+PARSER_BEGIN(TexParser)
+package au.edu.uq.smartass.templates.texparser;
+
+import au.edu.uq.smartass.engine.Engine;
+
+public class TexParser { 
+    
+    Engine engine;
+
+	public SimpleNode parse() throws ParseException {
+      SimpleNode n = Template();
+      //n.dump("");
+      //System.out.println("-------------------------------");
+      //System.out.println(n.getCode());
+      //System.out.println("-------------------------------");
+      return n;
+	}
+	
+	public void setEngine(Engine engine) {
+		this.engine = engine;
+	}
+}
+PARSER_END(TexParser)
+
+SimpleNode Template() : {}    { AnyText() Document() AnyText() <EOF> { jjtThis.init(); return jjtThis; } }
+
+void Document() : {} {<BEGINDOC> 
+	AnyText() 
+	(
+		Control()
+	) *
+	<ENDDOC>} 
+
+void Control() #void : {} { (Repeat() | Multi() | Call() | Section() | Script()) AnyText() }
+	  
+void Repeat() : {Token t;} { <BEGINREPEAT> ((t = <NUMBER>) | (t = <INT>))  (<SPACE>)* <BREAK>
+	AnyText()  ( Control() )* <ENDREPEAT> 
+	{jjtThis.setRepeatsNum(Integer.parseInt(t.image));}}
+
+void Multi() : {Token t = null;} { <BEGINMULTI> [((t = <NUMBER>) | (t = <INT>))] (<SPACE>)* <BREAK> (AnyText() ( Control() )*) 
+	( <MULTICHOICE> (AnyText() ( Control() )*) #MultiChoice)+ <ENDMULTI>  
+		{if(t!=null) jjtThis.setChoicesCount(Integer.parseInt(t.image));  }}
+
+void Call() : {Token t;} { "%%CALL" (<SPACE>)* t = <FILENAME> (<SPACE>)* <BREAK>  {jjtThis.setFilename(t.image); jjtThis.setEngine(engine); } }
+
+void Section() : {Token t;} {
+	"%%BEGIN" (<SPACE>)* t=<NAME> (<SPACE>)* <BREAK>
+		AnyText() ( ScriptAndText() ) * 
+	<ENDSECTION> 
+	{jjtThis.setName(t.image);} 
+	}
+
+void ScriptAndText() #void : {} { Script() AnyText() }
+
+void Script() : {Token t;} { <BEGINSCRIPT> t = <ENDSCRIPT> 
+	{jjtThis.setText(t.image.substring(0, t.image.length()-2));} } 
+
+JAVACODE
+    void AnyText() {
+      Token tok;
+      String text = "";
+      tok = getToken(1);
+      while (tok.kind==ANYCHAR || tok.kind==SPACE || tok.kind==NUMBER || tok.kind==BREAK || tok.kind==ALPHA 
+      			|| tok.kind==NAME || tok.kind==INT || tok.kind==FILENAME) {
+        	text = text + tok.image;
+	        getNextToken();
+	        tok = getToken(1);
+	  }
+	  jjtThis.setText(text);
+    }
+
+TOKEN : { < SPACE : " " | "\t" > }
+TOKEN : { < BREAK : "\n" | "\r" | "\r\n"> }
+TOKEN : { < NUMBER : ["0" - "9"] > }
+TOKEN : { < #ALPHA : ["a" - "z"] | ["A" - "Z"] > }
+TOKEN : { < #FILEDELIMITER : "/" > }
+TOKEN : { < ANYCHAR : ~[] > }
+TOKEN : { < NAME : <ALPHA> (<ALPHA> | <NUMBER> | "_")* > }
+TOKEN : { < INT : <NUMBER> ( <NUMBER> )* > }
+TOKEN : { < FILENAME : (<ALPHA> | <NUMBER> | "_" | "." | "-")+ (<FILEDELIMITER> (<ALPHA> | <NUMBER> | "_" | "." | "-")+)* > }
+
+TOKEN : { < BEGINDOC : "\\begin{document}" > } 
+TOKEN : { < ENDDOC : "\\end{document}" > }
+TOKEN : { < BEGINREPEAT : "%%REPEAT" (<SPACE>)* > }
+TOKEN : { < ENDREPEAT : "%%ENDREPEAT" (<SPACE>)* <BREAK> > }
+
+TOKEN : { < BEGINMULTI : "%%MULTI"  (<SPACE>)* > }
+TOKEN : { < MULTICHOICE : "%%CHOICE" (<SPACE>)* <BREAK> > }
+TOKEN : { < ENDMULTI : "%%ENDMULTI" (<SPACE>)* <BREAK> > }
+/*TOKEN : { < CALL : "%%CALL" (<SPACE>)* (<ALPHA> | <NUMBER> | "_" | "." | "-")+ (<SPACE>)* <BREAK> > }*/
+
+/*TOKEN : { < BEGINSECTION : "%%BEGIN" (<SPACE>)* <NAME> (<SPACE>)* <BREAK> > }*/
+TOKEN : { < ENDSECTION : "%%END" (<SPACE>)+ (<NAME>)? (<SPACE>)* <BREAK> > }
+
+TOKEN : { < BEGINSCRIPT : "#<" > : SCRIPT }
+<SCRIPT> TOKEN : { < ENDSCRIPT : "#>" > : DEFAULT }
+<SCRIPT> MORE : {<~[]>}
+

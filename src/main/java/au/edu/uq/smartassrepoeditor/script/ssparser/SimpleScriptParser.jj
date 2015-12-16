@@ -1,0 +1,193 @@
+options {
+  STATIC = false;
+  LOOKAHEAD = 3;
+  FORCE_LA_CHECK = true;
+}
+
+PARSER_BEGIN(SimpleScriptParser)
+
+package au.edu.uq.smartass.script.ssparser;
+
+import java.util.Vector;
+
+public class SimpleScriptParser {
+	Vector<ScriptLine> lines = new Vector<ScriptLine>();
+	VarCreation tmp_var;
+	Vector<VarArg> tmp_args;
+	
+	String tmp_section_name;
+	String tmp_var_type;
+	String tmp_file_path;
+	
+	public class ScriptLine {}
+	
+	public class VarArg {}
+	
+	public class StrArg extends VarArg {public String str;}
+	
+	public class DSArg extends VarArg {public String dsname; public int fieldno = 0;}
+	
+	public class VarCreation extends ScriptLine {
+		public String moduleName, varName;
+		public Vector<VarArg> args = new Vector<VarArg>();
+	}
+	
+	public class SectionAccess extends ScriptLine {
+		public String varName;
+		public String sectionName;
+	}
+	
+	public class DSCreation extends ScriptLine {
+		final public static int SEQUENTIAL = 0;
+		final public static int RANDOM = 1;
+		final public static int RANDOM_UNIQUE = 2;
+		final public static int BYKEY = 3;
+		final public static int BYLINENO = 4;
+		
+		public String name;
+		public String type;
+		public String path;
+		public int kind;
+		public String key;
+		public int num;
+	}
+
+
+  public Vector<ScriptLine> parse() throws ParseException {
+    Script();  
+    return lines;
+  }
+
+}
+
+PARSER_END(SimpleScriptParser)
+
+
+void Script() : {} { [<SPACES>] 
+		Line() [<SPACES>] 
+		(<LINEDELIMITER> [<SPACES>] Line() [<SPACES>])* 
+		[<LINEDELIMITER>] [<SPACES>] <EOF>	}
+
+
+void Line() : {ScriptLine line;} {(line = VarCreation() | line = VarAccessSection() | line =  DSCreation() )
+	{lines.add(line);} }
+
+ScriptLine VarCreation() : {VarCreation line; tmp_args = new Vector<VarArg>();} 
+	{line = VarDecl() [ VarArgsCreation() ] {return line;} }
+
+ScriptLine VarAccessSection() : {Token var, section;} {var = <NAME> "." section = <NAME> 
+	{SectionAccess line = new SectionAccess(); 
+	line.varName = var.image; 
+	line.sectionName = section.image; 
+	return line;} }
+
+ScriptLine DSCreation() : {Token dstype, dsname, dspath, kind = null, subkind = null, num = null, key=null;} 
+	{ <DSLANGLE> dstype = 
+		<NAME> <DSRANGLE> <SPACES> <DSLANGLE> dsname = <NAME> <DSRANGLE> [<SPACES>] <OPENDSBRACKET> <DEFQUOTE> dspath = <DEFNOQUOTES> <DEFENDQUOTE> 
+		[ "," [<SPACES>] 
+			(kind = <SEQUENTIAL> 
+			| (kind = <RANDOM> [ <SPACES>  subkind = <UNIQUE>] )
+			| (kind = <KEY> [<SPACES>] "," [<SPACES>] num = <NUMBERS> [<SPACES>] "," [<SPACES>] <DEFQUOTE> key = <DEFNOQUOTES> <DEFENDQUOTE> )
+			| kind = <NUMBERS> ) 	] 
+		[<SPACES>] ")"  
+	
+		{DSCreation line = new DSCreation(); 
+			line.name = dsname.image;
+			line.type = dstype.image;
+			line.path = dspath.image;
+			if(kind==null || kind.image.equals("RANDOM")) {
+				if(kind==null || subkind==null)
+					line.kind = DSCreation.RANDOM;
+				else
+					line.kind = DSCreation.RANDOM_UNIQUE;
+			} else if(kind.image.equals("SEQUENTIAL"))
+				line.kind = DSCreation.SEQUENTIAL;
+			else if(kind.image.equals("KEY")) {
+				line.kind = DSCreation.BYKEY;
+				line.num = Integer.parseInt(num.image);
+				line.key = key.image;
+			} else {
+				line.kind = DSCreation.BYLINENO;
+				line.num = Integer.parseInt(kind.image);
+			}
+			return line;	
+		}
+	}
+	
+	
+
+VarCreation VarDecl() : {Token type, name;} {type = <NAME> <SPACES> name = <NAME> 
+	{tmp_var = new VarCreation(); 
+	tmp_var.moduleName = type.image; 
+	tmp_var.varName = name.image; 
+	return tmp_var;} }
+
+void VarArgsCreation() : {} { <OPENBRACKET> [<SPACES>] Arg() [<SPACES>] (<COMMA> [<SPACES>] Arg() [<SPACES>] )* <CLOSEBRACKET> {} }
+
+void Arg() : {} { StringArg() | DSArg() }
+
+void StringArg() : {Token str;} { ((<QUOTE> str = <NOQUOTES> <ENDQUOTE> ) | str = <NOSTRING>)
+	{ StrArg arg = new StrArg(); 
+	arg.str = str.image;
+	tmp_var.args.add(arg); } }
+
+void DSArg() : {Token ds, fieldno = null;} { <PARAMDSLANGLE> ds = <NAME> [ <DSSHARP> fieldno = <NUMBERS> ]  <PARAMDSRANGLE> {
+	DSArg arg = new DSArg();
+	arg.dsname = ds.image;
+	if(fieldno!=null)
+		arg.fieldno = Integer.parseInt(fieldno.image);
+	tmp_var.args.add(arg);
+	} }
+
+
+
+
+TOKEN : { < #SPACE : " " | "\t" | "\n" | "\r" | "\r\n"> }
+TOKEN : { < LINEDELIMITER : ";" > }
+TOKEN : { < #ALPHA : ["a" - "z"] | ["A" - "Z"] > }
+TOKEN : { < #FILEDELIMITER : "/" > }
+TOKEN : { < #NUMBER : ["0" - "9"] > }
+
+TOKEN : { < SEQUENTIAL : "SEQUENTIAL" > }
+TOKEN : { <RANDOM : "RANDOM" > } 
+TOKEN : { <UNIQUE : "UNIQUE" > }  
+TOKEN : { <KEY : "KEY" > }  
+<DEFAULT, DSCREATION, PARAM> TOKEN : { < SPACES : (<SPACE>)+ > }
+
+<DEFAULT, DSNAME> TOKEN : { < NAME : <ALPHA> (<ALPHA> | <NUMBER> | "_")* > }
+<DEFAULT, DSNAME> TOKEN : { < NUMBERS : (<NUMBER>)+ > }
+
+
+/* Datasource creation */
+
+TOKEN : { < DSRANGLE : ">" > : DSCREATION }
+<DSCREATION, DEFAULT> TOKEN : { < DSLANGLE : "<" > : DEFAULT }
+<DSCREATION> TOKEN : { < OPENDSBRACKET : "(" > : DEFAULT }
+
+TOKEN : { < DEFQUOTE : "\""> : DEFSTRING }
+<DEFSTRING> TOKEN : { < DEFENDQUOTE : "\""> : DEFAULT }
+<DEFSTRING> TOKEN : { < DEFNOQUOTES : (~["\""] | "\\\"")* > }
+
+
+/* Parameters for variable creation */
+
+TOKEN : { < OPENBRACKET : "(" > : PARAM }
+<PARAM> TOKEN : { <CLOSEBRACKET : ")" > : DEFAULT }
+
+<PARAM> TOKEN : { < PARAMDSLANGLE : "<" > : DSNAME }
+<DSNAME> TOKEN : { < DSSHARP : "#" > : DSNAME }
+<DSNAME> TOKEN : { < PARAMDSRANGLE : ">" > : PARAM }
+
+<PARAM> TOKEN : { < QUOTE : "\""> : STRING }
+<STRING> TOKEN : { < ENDQUOTE : "\""> : PARAM }
+<STRING> TOKEN : { < NOQUOTES : (~["\""] | "\\\"")* > }
+
+<PARAM> TOKEN : { < COMMA : "," > }
+/*This will cut away leading blanks from string! 
+Use quotes if you want to sent to variable constructor somesthing like "  abc" */
+<PARAM> TOKEN : { < NOSTRING : (~["\"", ",", "<", ")", " "])+ (<NOCOMMA>)* > }
+<PARAM> TOKEN : { < NOCOMMA : ~[",", ")"] > }
+
+
+/*<STRING> TOKEN : { < FILENAME : (<ALPHA> | <NUMBER> | "_" | "." | "-")+ (<FILEDELIMITER> (<ALPHA> | <NUMBER> | "_" | "." | "-")+)* > }*/
+ 
