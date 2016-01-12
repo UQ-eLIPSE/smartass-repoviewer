@@ -12,15 +12,16 @@ The following software is required
 To install clone the git repo and install gradle. The project also requires jDvi, which can be downloaded using the downloadJars task
 
 ```shell
-$ gradle downloadJars
+$ gradle wrapper
+$ ./gradlew downloadJars
 ```
 
 ## Running
 To run simply call the gradle run task
 
 ```shell
-$ gradle build
-$ gradle run
+$ ./gradlew build
+$ ./gradlew run
 ```
 
 ## Code Walkthrough
