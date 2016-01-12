@@ -4,6 +4,7 @@ SmartAss repo editor is a desktop GUI application for managing the SmartAss data
 
 ## Requirements
 The following software is required
+
 * Java JDK 8
 * Gradle
 
